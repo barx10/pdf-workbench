@@ -8,7 +8,10 @@ export async function runOcr(
   pdfRegion: { x: number; y: number; width: number; height: number },
   onProgress?: (pct: number) => void
 ): Promise<OcrResult[]> {
-  const result = await Tesseract.recognize(canvas, 'nor+eng', {
+  // Use createWorker directly so we can request blocks output explicitly.
+  // Tesseract.recognize() convenience function defaults to { text: true } only,
+  // leaving blocks: null and making word extraction impossible.
+  const worker = await Tesseract.createWorker('nor+eng', 1, {
     workerPath: '/tesseract-worker.min.js',
     corePath: '/tesseract-core.js',
     logger: (m: { status: string; progress: number }) => {
@@ -21,11 +24,13 @@ export async function runOcr(
     },
   })
 
+  const result = await worker.recognize(canvas, {}, { blocks: true, text: true })
+  await worker.terminate()
+
   const cw = canvas.width
   const ch = canvas.height
   const results: OcrResult[] = []
 
-  // In tesseract.js v7, words are nested: blocks → paragraphs → lines → words
   type TWord = { text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number } }
   type TLine  = { words: TWord[] }
   type TPara  = { lines: TLine[] }
