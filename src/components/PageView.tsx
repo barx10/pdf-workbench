@@ -150,6 +150,14 @@ export const PageView = memo(function PageView({ page, file, isSelected, onSelec
       ctx.setLineDash([6, 3])
       ctx.strokeRect(x, y, w, h)
       ctx.setLineDash([])
+    } else if (activeTool === 'ocr') {
+      ctx.fillStyle = 'rgba(167,139,250,0.08)'
+      ctx.fillRect(x, y, w, h)
+      ctx.strokeStyle = '#a78bfa'
+      ctx.lineWidth = 2
+      ctx.setLineDash([5, 4])
+      ctx.strokeRect(x, y, w, h)
+      ctx.setLineDash([])
     }
   }
 
@@ -163,38 +171,58 @@ export const PageView = memo(function PageView({ page, file, isSelected, onSelec
     const py = Math.min(drawStart.current.y, pos.y)
     const pw2 = Math.abs(pos.x - drawStart.current.x)
     const ph2 = Math.abs(pos.y - drawStart.current.y)
-    if (pw2 >= 5 && ph2 >= 5) {
+
+    if (activeTool === 'redact' && pw2 >= 5 && ph2 >= 5) {
       const rect = pixelRectToPdfRect(px, py, pw2, ph2, cw, ch, pw, ph)
-      if (activeTool === 'redact') addRedaction(page.id, { id: uuidv4(), ...rect })
-      else if (activeTool === 'crop') setPageCropBox(page.id, rect)
+      addRedaction(page.id, { id: uuidv4(), ...rect })
+    } else if (activeTool === 'crop' && pw2 >= 5 && ph2 >= 5) {
+      const rect = pixelRectToPdfRect(px, py, pw2, ph2, cw, ch, pw, ph)
+      setPageCropBox(page.id, rect)
+    } else if (activeTool === 'ocr') {
+      if (!pw) { alert('Siden er ikke rendret ennå — prøv igjen.'); return }
+      const doOcr = async () => {
+        setProcessing(true, t.scanOcr + ' (laster…)')
+        try {
+          let ocrCanvas: HTMLCanvasElement
+          let pdfRegion: { x: number; y: number; width: number; height: number }
+
+          if (pw2 >= 10 && ph2 >= 10) {
+            // Region OCR — extract selected area from already-rendered canvas
+            const region = document.createElement('canvas')
+            region.width = Math.round(pw2)
+            region.height = Math.round(ph2)
+            region.getContext('2d')!.drawImage(canvasRef.current!, Math.round(px), Math.round(py), Math.round(pw2), Math.round(ph2), 0, 0, Math.round(pw2), Math.round(ph2))
+            ocrCanvas = region
+            pdfRegion = { x: (px / cw) * pw, y: ph - ((py + ph2) / ch) * ph, width: (pw2 / cw) * pw, height: (ph2 / ch) * ph }
+          } else {
+            // Full page OCR — re-render at 2x for better accuracy
+            const bytes = await file.file.arrayBuffer()
+            const { canvas: full } = await renderPageToImageData(bytes, page.pageIndex, 2.0)
+            ocrCanvas = full
+            pdfRegion = { x: 0, y: 0, width: pw, height: ph }
+          }
+
+          const results = await runOcr(ocrCanvas, pdfRegion, (pct) => {
+            setProcessing(true, `${t.scanOcr} ${pct}%`)
+          })
+          if (results.length > 0) {
+            applyOcr(page.id, results)
+          } else {
+            alert('Ingen tekst funnet. OCR fungerer kun på skannede (bilde-baserte) PDF-er.')
+          }
+        } catch (err) {
+          console.error('OCR feil:', err)
+          alert('OCR feilet. Sjekk internett — Tesseract laster språkdata fra CDN første gang (~20 MB).')
+        } finally {
+          setProcessing(false)
+        }
+      }
+      doOcr()
     }
+
     overlayRef.current?.getContext('2d')!.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height)
     setIsDrawing(false)
     drawStart.current = null
-  }
-
-  const handleOcr = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setProcessing(true, t.scanOcr + ' (laster…)')
-    try {
-      const bytes = await file.file.arrayBuffer()
-      const { canvas } = await renderPageToImageData(bytes, page.pageIndex, 2.0)
-      const { width: pw, height: ph } = pdfDimsRef.current
-      if (!pw) { alert('Siden er ikke rendret ennå — prøv igjen om et sekund.'); return }
-      const results = await runOcr(canvas, pw, ph, (pct) => {
-        setProcessing(true, `${t.scanOcr} ${pct}%`)
-      })
-      if (results.length > 0) {
-        applyOcr(page.id, results)
-      } else {
-        alert('Ingen tekst funnet. OCR fungerer kun på skannede (bilde-baserte) PDF-er, ikke på tekst-baserte PDF-er.')
-      }
-    } catch (err) {
-      console.error('OCR feil:', err)
-      alert('OCR feilet. Sjekk internettforbindelsen — Tesseract laster språkdata fra CDN første gang (~20 MB).')
-    } finally {
-      setProcessing(false)
-    }
   }
 
   return (
@@ -226,16 +254,9 @@ export const PageView = memo(function PageView({ page, file, isSelected, onSelec
             </span>
           )}
           {activeTool === 'ocr' && isSelected && (
-            <button
-              onClick={handleOcr}
-              style={{
-                fontSize: 10, padding: '2px 8px', borderRadius: 4,
-                background: 'rgba(167,139,250,0.12)', color: 'var(--violet)',
-                border: '1px solid rgba(167,139,250,0.2)', cursor: 'pointer',
-              }}
-            >
-              {t.scanOcr}
-            </button>
+            <span style={{ fontSize: 10, color: 'var(--violet)', opacity: 0.7 }}>
+              Dra for område · klikk for hele siden
+            </span>
           )}
         </div>
       </div>

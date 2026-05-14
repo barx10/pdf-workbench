@@ -2,8 +2,8 @@ export type Lang = 'en' | 'no'
 
 export const translations = {
   en: {
-    appName: 'PDF Workbench',
-    appEdition: 'Pro Edition',
+    appName: 'PDFPro',
+    subtitle: 'Workbench',
     noFiles: 'No files loaded',
     clearAll: 'Clear All',
     exportPdf: 'Export PDF',
@@ -57,8 +57,8 @@ export const translations = {
     themeToggleLight: '☾ Mørk',
   },
   no: {
-    appName: 'PDF Arbeidsbenk',
-    appEdition: 'Pro-utgave',
+    appName: 'PDFPro',
+    subtitle: 'Arbeidsbenk',
     noFiles: 'Ingen filer lastet inn',
     clearAll: 'Fjern alt',
     exportPdf: 'Eksporter PDF',

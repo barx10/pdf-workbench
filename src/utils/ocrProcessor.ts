@@ -1,10 +1,11 @@
 import Tesseract from 'tesseract.js'
 import type { OcrResult } from '../store/useStore'
 
+// pdfRegion: the area of the PDF page this canvas represents, in PDF points (Y from bottom).
+// For full-page OCR pass { x:0, y:0, width:pdfW, height:pdfH }.
 export async function runOcr(
   canvas: HTMLCanvasElement,
-  pdfWidth: number,
-  pdfHeight: number,
+  pdfRegion: { x: number; y: number; width: number; height: number },
   onProgress?: (pct: number) => void
 ): Promise<OcrResult[]> {
   const result = await Tesseract.recognize(canvas, 'nor+eng', {
@@ -18,11 +19,10 @@ export async function runOcr(
     },
   })
 
-  const canvasWidth = canvas.width
-  const canvasHeight = canvas.height
+  const cw = canvas.width
+  const ch = canvas.height
   const results: OcrResult[] = []
 
-  // Tesseract result type - access words via the data object
   const data = result.data as unknown as {
     words: Array<{
       text: string
@@ -35,10 +35,11 @@ export async function runOcr(
     if (word.confidence < 30) continue
     const { x0, y0, x1, y1 } = word.bbox
 
-    const pdfX = (x0 / canvasWidth) * pdfWidth
-    const pdfY = pdfHeight - (y1 / canvasHeight) * pdfHeight
-    const pdfW = ((x1 - x0) / canvasWidth) * pdfWidth
-    const pdfH = ((y1 - y0) / canvasHeight) * pdfHeight
+    // Map canvas pixel coords → PDF coords within the region
+    const pdfX = pdfRegion.x + (x0 / cw) * pdfRegion.width
+    const pdfY = pdfRegion.y + (1 - y1 / ch) * pdfRegion.height
+    const pdfW = ((x1 - x0) / cw) * pdfRegion.width
+    const pdfH = ((y1 - y0) / ch) * pdfRegion.height
 
     results.push({
       text: word.text,

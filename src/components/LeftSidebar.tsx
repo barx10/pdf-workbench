@@ -80,7 +80,7 @@ export function LeftSidebar() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div>
             <div className="app-wordmark">PDF<span>Pro</span></div>
-            <div className="app-edition">{t.appEdition}</div>
+            <div className="app-edition">{t.subtitle}</div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={toggleLang} className="meta-btn" title="Bytt språk">
