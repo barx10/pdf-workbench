@@ -206,7 +206,7 @@ export const PageView = memo(function PageView({ page, file, isSelected, onSelec
             region.getContext('2d')!.drawImage(canvasRef.current!, Math.round(px), Math.round(py), Math.round(pw2), Math.round(ph2), 0, 0, Math.round(pw2), Math.round(ph2))
             ocrCanvas = region
           } else {
-            const { canvas: full } = await renderPageToImageData(bytes, page.pageIndex, 2.0)
+            const { canvas: full } = await renderPageToImageData(bytes, page.pageIndex, 3.0)
             ocrCanvas = full
           }
 

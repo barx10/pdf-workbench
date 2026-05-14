@@ -60,6 +60,14 @@ export async function extractPageText(
     results.push({ text: item.str, x, y, width: w, height: h, confidence: 100 })
   }
 
+  // Sort top-to-bottom (PDF y is from bottom, so descending y = top of page first),
+  // then left-to-right within the same line (items within 4pt of each other in y).
+  results.sort((a, b) => {
+    const yDiff = (b.y + b.height) - (a.y + a.height)
+    if (Math.abs(yDiff) > 4) return yDiff
+    return a.x - b.x
+  })
+
   return results
 }
 
