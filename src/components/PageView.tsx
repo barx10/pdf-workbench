@@ -80,13 +80,20 @@ export const PageView = memo(function PageView({ page, file, isSelected, onSelec
     }
 
     if (page.cropBox) {
-      const cx2 = (page.cropBox.x / pw) * src.width
-      const cy2 = src.height - ((page.cropBox.y + page.cropBox.height) / ph) * src.height
-      ctx.strokeStyle = 'var(--green, #4ade80)'
-      ctx.lineWidth = 3
-      ctx.setLineDash([8, 4])
-      ctx.strokeRect(cx2, cy2, (page.cropBox.width / pw) * src.width, (page.cropBox.height / ph) * src.height)
-      ctx.setLineDash([])
+      const cx = Math.round((page.cropBox.x / pw) * src.width)
+      const cy = Math.round(src.height - ((page.cropBox.y + page.cropBox.height) / ph) * src.height)
+      const cw = Math.round((page.cropBox.width / pw) * src.width)
+      const ch = Math.round((page.cropBox.height / ph) * src.height)
+
+      ctx.fillStyle = 'rgba(0,0,0,0.58)'
+      ctx.fillRect(0, 0, src.width, cy)
+      ctx.fillRect(0, cy + ch, src.width, src.height - cy - ch)
+      ctx.fillRect(0, cy, cx, ch)
+      ctx.fillRect(cx + cw, cy, src.width - cx - cw, ch)
+
+      ctx.strokeStyle = '#4ade80'
+      ctx.lineWidth = 2
+      ctx.strokeRect(cx, cy, cw, ch)
     }
   }, [file, page.pageIndex, page.redactions, page.stamps, page.cropBox])
 
@@ -110,7 +117,7 @@ export const PageView = memo(function PageView({ page, file, isSelected, onSelec
       const { width: pw, height: ph } = pdfDimsRef.current
       if (!pw) return
       const diag = Math.sqrt(pw * pw + ph * ph)
-      const fontSize = Math.round((diag * 0.55) / Math.max(pendingStampText.length, 1))
+      const fontSize = Math.round(diag / (Math.max(pendingStampText.length, 1) * 0.6))
       addStamp(page.id, { id: uuidv4(), x: pw / 2, y: ph / 2, text: pendingStampText, fontSize, color: '#9ca3af', rotation: 45 })
     }
   }
@@ -168,14 +175,26 @@ export const PageView = memo(function PageView({ page, file, isSelected, onSelec
 
   const handleOcr = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    setProcessing(true, t.scanOcr)
+    setProcessing(true, t.scanOcr + ' (laster…)')
     try {
       const bytes = await file.file.arrayBuffer()
       const { canvas } = await renderPageToImageData(bytes, page.pageIndex, 2.0)
       const { width: pw, height: ph } = pdfDimsRef.current
-      const results = await runOcr(canvas, pw, ph)
-      if (results.length > 0) applyOcr(page.id, results)
-    } finally { setProcessing(false) }
+      if (!pw) { alert('Siden er ikke rendret ennå — prøv igjen om et sekund.'); return }
+      const results = await runOcr(canvas, pw, ph, (pct) => {
+        setProcessing(true, `${t.scanOcr} ${pct}%`)
+      })
+      if (results.length > 0) {
+        applyOcr(page.id, results)
+      } else {
+        alert('Ingen tekst funnet. OCR fungerer kun på skannede (bilde-baserte) PDF-er, ikke på tekst-baserte PDF-er.')
+      }
+    } catch (err) {
+      console.error('OCR feil:', err)
+      alert('OCR feilet. Sjekk internettforbindelsen — Tesseract laster språkdata fra CDN første gang (~20 MB).')
+    } finally {
+      setProcessing(false)
+    }
   }
 
   return (

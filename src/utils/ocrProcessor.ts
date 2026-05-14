@@ -7,10 +7,13 @@ export async function runOcr(
   pdfHeight: number,
   onProgress?: (pct: number) => void
 ): Promise<OcrResult[]> {
-  const result = await Tesseract.recognize(canvas, 'eng', {
+  const result = await Tesseract.recognize(canvas, 'nor+eng', {
     logger: (m: { status: string; progress: number }) => {
-      if (m.status === 'recognizing text' && onProgress) {
-        onProgress(Math.round(m.progress * 100))
+      if (onProgress) {
+        if (m.status === 'loading tesseract core') onProgress(5)
+        else if (m.status === 'loading language traineddata') onProgress(15)
+        else if (m.status === 'initializing api') onProgress(25)
+        else if (m.status === 'recognizing text') onProgress(30 + Math.round(m.progress * 70))
       }
     },
   })
