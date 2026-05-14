@@ -25,15 +25,25 @@ export async function runOcr(
   const ch = canvas.height
   const results: OcrResult[] = []
 
-  const data = result.data as unknown as {
-    words: Array<{
-      text: string
-      confidence: number
-      bbox: { x0: number; y0: number; x1: number; y1: number }
-    }>
+  // In tesseract.js v7, words are nested: blocks → paragraphs → lines → words
+  type TWord = { text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number } }
+  type TLine  = { words: TWord[] }
+  type TPara  = { lines: TLine[] }
+  type TBlock = { paragraphs: TPara[] }
+  const data = result.data as unknown as { blocks: TBlock[] | null }
+
+  const allWords: TWord[] = []
+  for (const block of data.blocks ?? []) {
+    for (const para of block.paragraphs ?? []) {
+      for (const line of para.lines ?? []) {
+        for (const word of line.words ?? []) {
+          allWords.push(word)
+        }
+      }
+    }
   }
 
-  for (const word of data.words ?? []) {
+  for (const word of allWords) {
     if (word.confidence < 30) continue
     const { x0, y0, x1, y1 } = word.bbox
 
