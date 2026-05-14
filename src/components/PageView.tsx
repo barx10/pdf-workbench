@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, memo } from 'react'
 import { useStore, type PageRecord, type FileRecord } from '../store/useStore'
-import { renderPageToImageData } from '../utils/pdfRenderer'
+import { renderPageToImageData, extractPageText } from '../utils/pdfRenderer'
 import { pixelRectToPdfRect } from '../utils/coordinateUtils'
 import { runOcr } from '../utils/ocrProcessor'
 import { translations } from '../i18n'
@@ -181,38 +181,46 @@ export const PageView = memo(function PageView({ page, file, isSelected, onSelec
     } else if (activeTool === 'ocr') {
       if (!pw) { alert('Siden er ikke rendret ennå — prøv igjen.'); return }
       const doOcr = async () => {
-        setProcessing(true, t.scanOcr + ' (laster…)')
+        setProcessing(true, t.scanOcr + '…')
         try {
-          let ocrCanvas: HTMLCanvasElement
-          let pdfRegion: { x: number; y: number; width: number; height: number }
+          const isRegion = pw2 >= 10 && ph2 >= 10
+          const pdfRegion = isRegion
+            ? { x: (px / cw) * pw, y: ph - ((py + ph2) / ch) * ph, width: (pw2 / cw) * pw, height: (ph2 / ch) * ph }
+            : undefined
 
-          if (pw2 >= 10 && ph2 >= 10) {
-            // Region OCR — extract selected area from already-rendered canvas
+          // 1. Try PDF.js native text extraction first (fast, perfect for text-based PDFs)
+          const bytes = await file.file.arrayBuffer()
+          const native = await extractPageText(bytes, page.pageIndex, pdfRegion)
+          if (native.length > 0) {
+            applyOcr(page.id, native)
+            return
+          }
+
+          // 2. Fall back to Tesseract for scanned/image-based PDFs
+          setProcessing(true, t.scanOcr + ' (Tesseract…)')
+          let ocrCanvas: HTMLCanvasElement
+          if (isRegion) {
             const region = document.createElement('canvas')
             region.width = Math.round(pw2)
             region.height = Math.round(ph2)
             region.getContext('2d')!.drawImage(canvasRef.current!, Math.round(px), Math.round(py), Math.round(pw2), Math.round(ph2), 0, 0, Math.round(pw2), Math.round(ph2))
             ocrCanvas = region
-            pdfRegion = { x: (px / cw) * pw, y: ph - ((py + ph2) / ch) * ph, width: (pw2 / cw) * pw, height: (ph2 / ch) * ph }
           } else {
-            // Full page OCR — re-render at 2x for better accuracy
-            const bytes = await file.file.arrayBuffer()
             const { canvas: full } = await renderPageToImageData(bytes, page.pageIndex, 2.0)
             ocrCanvas = full
-            pdfRegion = { x: 0, y: 0, width: pw, height: ph }
           }
 
-          const results = await runOcr(ocrCanvas, pdfRegion, (pct) => {
+          const results = await runOcr(ocrCanvas, pdfRegion ?? { x: 0, y: 0, width: pw, height: ph }, (pct) => {
             setProcessing(true, `${t.scanOcr} ${pct}%`)
           })
           if (results.length > 0) {
             applyOcr(page.id, results)
           } else {
-            alert('Ingen tekst funnet. OCR fungerer kun på skannede (bilde-baserte) PDF-er.')
+            alert('Ingen tekst funnet på denne siden.')
           }
         } catch (err) {
           console.error('OCR feil:', err)
-          alert('OCR feilet. Sjekk internett — Tesseract laster språkdata fra CDN første gang (~20 MB).')
+          alert('Tekstutvinning feilet. Sjekk konsollen for detaljer.')
         } finally {
           setProcessing(false)
         }

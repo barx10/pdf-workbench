@@ -31,6 +31,38 @@ export async function renderPageToDataUrl(
   }
 }
 
+// Extract embedded text from a PDF page using PDF.js (accurate for text-based PDFs).
+// Returns items in the same OcrResult shape so callers can treat them uniformly.
+// Pass a region (PDF points, Y from bottom) to filter to a specific area.
+export async function extractPageText(
+  pdfBytes: ArrayBuffer,
+  pageIndex: number,
+  region?: { x: number; y: number; width: number; height: number }
+): Promise<Array<{ text: string; x: number; y: number; width: number; height: number; confidence: number }>> {
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(pdfBytes.slice(0)) }).promise
+  const page = await pdf.getPage(pageIndex + 1)
+  const content = await page.getTextContent()
+
+  const results: Array<{ text: string; x: number; y: number; width: number; height: number; confidence: number }> = []
+
+  for (const item of content.items) {
+    if (!('str' in item) || !item.str.trim()) continue
+    const x = item.transform[4]
+    const y = item.transform[5]
+    const h = Math.abs(item.transform[3]) || 10
+    const w = (item as { width?: number }).width ?? h * item.str.length * 0.6
+
+    if (region) {
+      if (x < region.x || x > region.x + region.width) continue
+      if (y < region.y || y > region.y + region.height) continue
+    }
+
+    results.push({ text: item.str, x, y, width: w, height: h, confidence: 100 })
+  }
+
+  return results
+}
+
 export async function renderPageToImageData(
   pdfBytes: ArrayBuffer,
   pageIndex: number,
