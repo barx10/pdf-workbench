@@ -49,7 +49,11 @@ export async function runOcr(
   }
 
   for (const word of allWords) {
-    if (word.confidence < 30) continue
+    if (word.confidence < 50) continue
+    // Skip words that are mostly non-alphanumeric (UI elements, decorative artifacts)
+    const alphaRatio = (word.text.match(/[\wæøåÆØÅ]/g)?.length ?? 0) / word.text.length
+    if (alphaRatio < 0.5) continue
+    if (word.text.trim().length < 2) continue
     const { x0, y0, x1, y1 } = word.bbox
 
     // Map canvas pixel coords → PDF coords within the region
