@@ -2,6 +2,26 @@ import { PDFDocument } from 'pdf-lib'
 import { v4 as uuidv4 } from 'uuid'
 import type { FileRecord, PageRecord, FormFieldRecord } from '../store/useStore'
 
+export async function loadImageFile(file: File): Promise<{ fileRecord: FileRecord; pageRecords: PageRecord[] }> {
+  const bytes = await file.arrayBuffer()
+  const pdfDoc = await PDFDocument.create()
+
+  const isPng = file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')
+  const image = isPng ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes)
+
+  const { width, height } = image.scale(1)
+  const page = pdfDoc.addPage([width, height])
+  page.drawImage(image, { x: 0, y: 0, width, height })
+
+  const pdfBytes = await pdfDoc.save()
+  const pdfFile = new File(
+    [pdfBytes],
+    file.name.replace(/\.(jpe?g|png)$/i, '.pdf'),
+    { type: 'application/pdf' }
+  )
+  return loadPdfFile(pdfFile)
+}
+
 export async function loadPdfFile(file: File): Promise<{ fileRecord: FileRecord; pageRecords: PageRecord[] }> {
   const arrayBuffer = await file.arrayBuffer()
   const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true })

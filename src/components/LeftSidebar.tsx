@@ -4,7 +4,7 @@ import { Trash2, Download, Globe, Sun, Moon, Upload, GripVertical, Eye, EyeOff, 
 import { useDropzone } from 'react-dropzone'
 import { useStore } from '../store/useStore'
 import { exportPdf, downloadBlob } from '../utils/pdfExporter'
-import { loadPdfFile } from '../utils/pdfLoader'
+import { loadPdfFile, loadImageFile } from '../utils/pdfLoader'
 import { translations } from '../i18n'
 import { Thumbnail } from './Thumbnail'
 
@@ -32,12 +32,14 @@ export function LeftSidebar() {
   }, [files])
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const pdfs = acceptedFiles.filter((f) => f.type === 'application/pdf' || f.name.endsWith('.pdf'))
-    if (!pdfs.length) return
+    if (!acceptedFiles.length) return
     setProcessing(true, t.processing)
     try {
-      for (const file of pdfs) {
-        const { fileRecord, pageRecords } = await loadPdfFile(file)
+      for (const file of acceptedFiles) {
+        const isImage = /\.(jpe?g|png)$/i.test(file.name) || file.type.startsWith('image/')
+        const { fileRecord, pageRecords } = isImage
+          ? await loadImageFile(file)
+          : await loadPdfFile(file)
         useStore.getState().addFile(fileRecord, pageRecords)
       }
     } catch (e) { console.error(e) }
@@ -45,7 +47,9 @@ export function LeftSidebar() {
   }, [setProcessing, t])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop, accept: { 'application/pdf': ['.pdf'] }, multiple: true,
+    onDrop,
+    accept: { 'application/pdf': ['.pdf'], 'image/jpeg': ['.jpg', '.jpeg'], 'image/png': ['.png'] },
+    multiple: true,
   })
 
   const onDragEnd = (result: DropResult) => {
