@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, Layers, Type, Square, Trash2, RotateCw, Crop, ChevronDown, ChevronRight, Crosshair } from 'lucide-react'
+import { FileText, Layers, Type, Square, Trash2, RotateCw, Crop, ChevronDown, ChevronRight, Crosshair, ScanText } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { translations } from '../i18n'
 
@@ -16,6 +16,7 @@ export function RightSidebar() {
   const [formOpen, setFormOpen]     = useState(true)
   const [stampOpen, setStampOpen]   = useState(true)
   const [redactOpen, setRedactOpen] = useState(true)
+  const [ocrOpen, setOcrOpen]       = useState(true)
 
   const selectedPage = pageOrder.find((p) => p.id === selectedPageId)
   const selectedFile = selectedPage ? files.find((f) => f.id === selectedPage.fileId) : null
@@ -211,6 +212,42 @@ export function RightSidebar() {
             </div>
           )}
         </Collapsible>
+
+        {/* OCR text */}
+        {selectedPage.ocrApplied && selectedPage.ocrData && selectedPage.ocrData.length > 0 && (
+          <Collapsible
+            icon={<ScanText size={11} />}
+            title={lang === 'no' ? 'OCR-tekst' : 'OCR Text'}
+            open={ocrOpen}
+            onToggle={() => setOcrOpen(!ocrOpen)}
+            count={selectedPage.ocrData.length}
+          >
+            <div style={{
+              fontSize: 11, lineHeight: 1.6, color: 'var(--text-primary)',
+              background: 'var(--bg-elevated)', borderRadius: 6,
+              padding: '8px 10px', border: '1px solid var(--border-faint)',
+              maxHeight: 200, overflowY: 'auto', whiteSpace: 'pre-wrap',
+              fontFamily: 'var(--font-mono)',
+              userSelect: 'text',
+            }}>
+              {selectedPage.ocrData.map((w) => w.text).join(' ')}
+            </div>
+            <button
+              onClick={() => {
+                const text = selectedPage.ocrData!.map((w) => w.text).join(' ')
+                navigator.clipboard.writeText(text)
+              }}
+              style={{
+                marginTop: 6, width: '100%', padding: '5px', borderRadius: 6,
+                fontSize: 10, fontFamily: 'var(--font-mono)',
+                background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
+                color: 'var(--text-secondary)', cursor: 'pointer',
+              }}
+            >
+              {lang === 'no' ? 'Kopier tekst' : 'Copy text'}
+            </button>
+          </Collapsible>
+        )}
       </div>
     </aside>
   )
