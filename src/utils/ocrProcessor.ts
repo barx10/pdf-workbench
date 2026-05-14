@@ -9,6 +9,8 @@ export async function runOcr(
   onProgress?: (pct: number) => void
 ): Promise<OcrResult[]> {
   const result = await Tesseract.recognize(canvas, 'nor+eng', {
+    workerPath: '/tesseract-worker.min.js',
+    corePath: '/tesseract-core.js',
     logger: (m: { status: string; progress: number }) => {
       if (onProgress) {
         if (m.status === 'loading tesseract core') onProgress(5)
